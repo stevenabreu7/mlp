@@ -8,7 +8,7 @@ def der_sigmoid(y):
     return y * (1.0 - y)
 
 class MLP(object):
-    def __init__(self, input, hidden, output, S):
+    def __init__(self, input, hidden, output):
         """
         Initializes MLP with one hidden layer.
         input:  # of input units
@@ -26,8 +26,8 @@ class MLP(object):
         self.act_output = [1.0] * self.output
 
         # randomize weights
-        self.wei_input = (np.random.random((self.input, self.hidden)) * 2 - 1) * 2
-        self.wei_output = (np.random.random((self.hidden, self.output)) * 2 - 1) * 2
+        self.wei_input = (np.random.random((self.input, self.hidden)) * 2 + 1)
+        self.wei_output = (np.random.random((self.hidden, self.output)) * 2 + 1)
 
     def feed_forward(self, inputs):
         """
@@ -60,9 +60,6 @@ class MLP(object):
                 self.act_output[i] += self.act_hidden[j] * self.wei_output[j][i]
             # add the bias (weight only, since value is one)
             self.act_output[i] += self.wei_input[0][i]
-
-            # # changing the output to be binary
-            # self.act_output[i] = 0 if self.act_output[i] < 0.5 else 1
 
         return self.act_output
 
@@ -117,45 +114,48 @@ class MLP(object):
             print("{:<15.5}".format(self.wei_output[i][0]), end=" ")
         print()
 
-    def train(self, patterns, iterations = 100, N = 0.0002, S=5):
+    def train(self, patterns, epochs = 100, learning_rate = 0.01):
+        # keep track of error and miss after each epoch
         errors = []
         misscs = []
-        misses = 1
-        i = 0
         self.print_weights()
-        for i in range(5000):
+        for i in range(epochs):
+            if i % 1000 == 0:
+                print("Epoch {}".format(i))
             error = 0.0
             misses = 0
             for p in patterns:
                 inputs = p[0]
                 targets = p[1]
                 x = self.feed_forward(inputs)
-                error += self.back_propagation(targets, N)
                 true_out = 0 if x[0] < 0.5 else 1
                 misses += 0 if true_out == targets[0] else 1
+                if misses == 0:
+                    break
+                error += self.back_propagation(targets, learning_rate)
+            misscs.append(misses / len(patterns))
+            if misses == 0:
+                break
             error /= len(patterns)
             errors.append(error)
-            misscs.append(misses / len(patterns))
         self.print_weights()
-        print("{:<3} {:8.5f} {:2}\n".format(i, error, misses))
-        # print(x[0], targets[0], end="\t")
+        print("\nLast iteration:\n{:<3} {:8.5f} {:2}\n".format(i, error, misses))
 
         # plot errors and misses
         plt.plot(errors, label="Errors")
         plt.plot(misscs, label="Missclassifications")
         plt.legend()
-        plt.savefig("N-{}-S-{}.png".format(N,S))
+        plt.savefig("rate-{}-N-{}.png".format(learning_rate, epochs))
 
-N = float(input("N: "))
-# S = int(input("Range of initializations: 1/"))
-S=1
+epochs = int(input("Epochs (in thousands): ")) * 1000
+rate = float(input("Learning rate: "))
 
 patterns = np.array([
-        [[0,0], [0]],
-        [[1,1], [0]],
-        [[0,1], [1]],
-        [[1,0], [1]]
-    ])
+    [[0,0], [0]],
+    [[1,1], [0]],
+    [[0,1], [1]],
+    [[1,0], [1]]
+])
 
-mlp = MLP(2, 2, 1, S)
-mlp.train(patterns, 10000, N, S)
+mlp = MLP(2, 2, 1)
+mlp.train(patterns, epochs, rate)
