@@ -26,8 +26,8 @@ class MLP(object):
         self.act_output = [1.0] * self.output
 
         # randomize weights
-        self.wei_input = (np.random.random((self.input, self.hidden)) * 2 + 1)
-        self.wei_output = (np.random.random((self.hidden, self.output)) * 2 + 1)
+        self.wei_input = (np.random.random((self.input, self.hidden)) * 2 - 1)
+        self.wei_output = (np.random.random((self.hidden, self.output)) * 2 - 1)
 
     def feed_forward(self, inputs):
         """
@@ -120,7 +120,7 @@ class MLP(object):
         misscs = []
         self.print_weights()
         for i in range(epochs):
-            if i % 1000 == 0:
+            if i % (epochs // 10) == 0:
                 print("Epoch {}".format(i))
             error = 0.0
             misses = 0
@@ -130,14 +130,12 @@ class MLP(object):
                 x = self.feed_forward(inputs)
                 true_out = 0 if x[0] < 0.5 else 1
                 misses += 0 if true_out == targets[0] else 1
-                if misses == 0:
-                    break
                 error += self.back_propagation(targets, learning_rate)
             misscs.append(misses / len(patterns))
-            if misses == 0:
-                break
             error /= len(patterns)
             errors.append(error)
+            if misses == 0:
+                break
         self.print_weights()
         print("\nLast iteration:\n{:<3} {:8.5f} {:2}\n".format(i, error, misses))
 
@@ -159,3 +157,8 @@ patterns = np.array([
 
 mlp = MLP(2, 2, 1)
 mlp.train(patterns, epochs, rate)
+
+outs = [mlp.feed_forward(patterns[i][0])[0] for i in range(4)]
+for i in range(4):
+    print("{:.4f} {}. ".format(outs[i], patterns[i][1][0]), end="")
+print()
