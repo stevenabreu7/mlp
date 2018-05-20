@@ -156,6 +156,7 @@ patterns = np.array([
 mlp = MLP(2, 2, 1)
 mlp.train(patterns, epochs, rate)
 
+# training done, run one test epoch
 outs = [mlp.feed_forward(patterns[i][0])[0] for i in range(4)]
 for i in range(4):
     print("{:.4f} {}. ".format(outs[i], patterns[i][1][0]), end="")
