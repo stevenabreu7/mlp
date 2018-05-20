@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -7,157 +8,97 @@ def sigmoid(x):
 def der_sigmoid(y):
     return y * (1.0 - y)
 
-class MLP(object):
+class XOR_MLP(object):
     def __init__(self, input, hidden, output):
-        """
-        Initializes MLP with one hidden layer.
-        input:  # of input units
-        hidden: # of units in hidden layer
-        output: # of output units
-        """
-        # set number of units (include bias)
+        # variables for the number of units in each layer
         self.input = input + 1
         self.hidden = hidden + 1
         self.output = output
 
-        # activations (first entry is bias)
-        self.act_input = [1.0] * self.input
-        self.act_hidden = [1.0] * self.hidden
-        self.act_output = [1.0] * self.output
+        # initial activations all set to 1
+        self.activations_input = np.ones(self.input)
+        self.activations_hidden = np.ones(self.hidden)
+        self.activations_output = np.ones(self.output)
 
-        # randomize weights
-        self.wei_input = (np.random.random((self.input, self.hidden)) * 2 - 1)
-        self.wei_output = (np.random.random((self.hidden, self.output)) * 2 - 1)
+        # random initial weights in range [-1,1]
+        self.weights_hidden = np.random.random((self.input, self.hidden)) * 2 - 1
+        self.weights_output = np.random.random((self.hidden, self.output)) * 2 - 1
 
-    def feed_forward(self, inputs):
-        """
-        One feed forward iteration on input vector.
-        inputs: input vector
-        return: output vector
-        """
-        if len(inputs) != self.input - 1:
-            raise ValueError("Wrong input dimensionality.")
+    def forward(self, input_vector):
+        # add bias to input vector
+        self.activations_input = np.append(input_vector, 1)
 
-        # set activations of input layer to the input vector
-        for i in range(1, self.input):
-            # don't change the first input unit (it's the bias)
-            self.act_input[i] = inputs[i-1]
+        # activations for hidden layer (leave out bias unit)
+        for i in range(self.hidden-1):
+            potential = self.activations_input @ self.weights_hidden[:,i]
+            self.activations_hidden[i] = sigmoid(potential)
+        
+        # activations for output layer (only one output unit)
+        self.activations_output = self.activations_hidden @ self.weights_output
 
-        # compute activations for hidden layer
-        for i in range(1, self.hidden):
-            # don't change the first hidden unit (it's the bias)
-            sum = 0.0
-            for j in range(1, self.input):
-                sum += self.act_input[j] * self.wei_input[j][i]
-            # add the bias (weight only, since value is one)
-            sum += self.wei_input[0][i]
-            self.act_hidden[i] = sigmoid(sum)
-
-        # compute activations for output layer
+        # return the output vector
+        return self.activations_output
+    
+    def backward(self, target, rate):
+        # deltas for output
+        delta_output = np.zeros(self.output)
         for i in range(self.output):
-            self.act_output[i] = 0.0
-            for j in range(1, self.hidden):
-                self.act_output[i] += self.act_hidden[j] * self.wei_output[j][i]
-            # add the bias (weight only, since value is one)
-            self.act_output[i] += self.wei_input[0][i]
+            delta_output[i] = 2 * (self.activations_output[i] - target[i])
 
-        return self.act_output
-
-    def back_propagation(self, targets, N = 0.0002):
-        """
-        targets: target values
-        N: learning rate
-        return: current error
-        """
-        if len(targets) != self.output:
-            raise ValueError("Invalid target dimensionality.")
-
-        # deltas for output units
-        output_deltas = [0.0] * self.output
-        for i in range(self.output):
-            # using quadratic loss with no regularizer -> eq. 61 in the LN
-            output_deltas[i] = 2 * (self.act_output[i] - targets[i])
-
-        # deltas for hidden units
-        hidden_deltas = [0.0] * self.hidden
+        # deltas for hidden
+        delta_hidden = np.zeros(self.hidden)
         for i in range(self.hidden):
-            sum = 0.0
-            for j in range(self.output):
-                sum += output_deltas[j] * self.wei_output[i][j]
-            hidden_deltas[i] = der_sigmoid(self.act_hidden[i]) * sum
+            sum = delta_output @ self.weights_output[i]
+            delta_hidden[i] = der_sigmoid(self.activations_hidden[i]) * sum
 
-        # update weights for output layer
+        # update weights for output
         for i in range(self.hidden):
-            for j in range(self.output):
-                change = output_deltas[j] * self.act_hidden[i]
-                self.wei_output[i][j] -= N * change
-
-        # update weights for hidden layer
+            change = delta_output[0] * self.activations_hidden[i]
+            self.weights_output[i][0] -= rate * change
+        
+        # update weights for hidden
         for i in range(self.input):
             for j in range(self.hidden):
-                change = hidden_deltas[j] * self.act_input[i]
-                self.wei_input[i][j] -= N * change
-
-        # calculate error
-        error = 0.0
-        for i in range(self.output):
-            error += 0.5 * (targets[i] - self.act_output[i]) ** 2
+                change = delta_hidden[j] * self.activations_input[i]
+                self.weights_hidden[i][j] -= rate * change
+        
+        # calculate the error
+        error = ((target - self.activations_output) ** 2).mean()
         return error
-
-    def print_weights(self):
-        print("Weights (3 input, 1 output)")
-        for i in range(3):
-            for j in range(3):
-                print("{:<15.5}".format(self.wei_input[i][j]), end=" ")
-            print()
-        for i in range(3):
-            print("{:<15.5}".format(self.wei_output[i][0]), end=" ")
-        print()
-
-    def train(self, patterns, epochs = 100, learning_rate = 0.01):
-        # keep track of error and miss after each epoch
+    
+    def train(self, patterns, targets, epochs=100, rate=0.1):
+        print(len(targets), len(patterns))
+        assert len(patterns) == len(targets)
         errors = []
-        misscs = []
-        self.print_weights()
+        missc = []
+        # do the training
         for i in range(epochs):
             if i % (epochs // 10) == 0:
                 print("Epoch {}".format(i))
             error = 0.0
             misses = 0
-            for p in patterns:
-                inputs = p[0]
-                targets = p[1]
-                x = self.feed_forward(inputs)
-                true_out = 0 if x[0] < 0.5 else 1
-                misses += 0 if true_out == targets[0] else 1
-                error += self.back_propagation(targets, learning_rate)
-            misscs.append(misses / len(patterns))
+            for j in range(len(patterns)):
+                res = self.forward(patterns[j])
+                bin_res = 0 if res < 0.5 else 1
+                misses += 1 if bin_res != targets[j] else 0
+                error += self.backward(targets[j], rate)
             error /= len(patterns)
+            misses /= len(patterns)
             errors.append(error)
-        self.print_weights()
-        print("\nLast iteration:\n{:<3} {:8.5f} {:2}\n".format(i, error, misses))
+            missc.append(misses)
+        # finished training, now test
+        results = [(self.forward(patterns[i]), targets[i]) for i in \
+            range(len(patterns))]
+        print(results)
 
-        # plot errors and misses
+        # plot the errors
         plt.plot(errors, label="Errors")
-        plt.plot(misscs, label="Missclassifications")
+        plt.plot(missc, label="Missclassifications")
         plt.legend()
-        plt.savefig("rate-{}-N-{}.png".format(learning_rate, epochs))
+        plt.show()
 
-epochs = int(input("Epochs (in thousands): ")) * 1000
-rate = float(input("Learning rate: "))
+patterns = np.array([[0,1], [1,0], [0,0], [1,1]])
+targets = np.array([[1],[1],[0],[0]])
 
-patterns = np.array([
-    [[0,0], [0]],
-    [[1,1], [0]],
-    [[0,1], [1]],
-    [[1,0], [1]]
-])
-
-mlp = MLP(2, 2, 1)
-mlp.train(patterns, epochs, rate)
-
-# training done, run one test epoch
-outs = [mlp.feed_forward(patterns[i][0])[0] for i in range(4)]
-for i in range(4):
-    print("{:.4f} {}. ".format(outs[i], patterns[i][1][0]), end="")
-print()
+mlp = XOR_MLP(2, 2, 1)
+mlp.train(patterns, targets, 10*1000, 0.1)
