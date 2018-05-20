@@ -67,25 +67,32 @@ class XOR_MLP(object):
         return error
     
     def train(self, patterns, targets, epochs=100, rate=0.1):
-        print(len(targets), len(patterns))
         assert len(patterns) == len(targets)
+        # keep track of the errors and misclassifications per epoch
         errors = []
         missc = []
+        
         # do the training
         for i in range(epochs):
             if i % (epochs // 10) == 0:
                 print("Epoch {}".format(i))
             error = 0.0
             misses = 0
+            # go through each pattern once
             for j in range(len(patterns)):
+                # forward pass
                 res = self.forward(patterns[j])
+                # computing whether this is a misclassification
                 bin_res = 0 if res < 0.5 else 1
                 misses += 1 if bin_res != targets[j] else 0
+                # backward propagation
                 error += self.backward(targets[j], rate)
+            # saving the error and misclassification (averaged)
             error /= len(patterns)
             misses /= len(patterns)
             errors.append(error)
             missc.append(misses)
+        
         # finished training, now test
         results = [(self.forward(patterns[i]), targets[i]) for i in \
             range(len(patterns))]
