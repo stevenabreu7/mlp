@@ -96,7 +96,7 @@ class MLP(object):
         for i in range(self.input):
             for j in range(self.hidden):
                 change = hidden_deltas[j] * self.act_input[i]
-                self.wei_input[i] -= N * change
+                self.wei_input[i][j] -= N * change
 
         # calculate error
         error = 0.0
@@ -134,8 +134,6 @@ class MLP(object):
             misscs.append(misses / len(patterns))
             error /= len(patterns)
             errors.append(error)
-            if misses == 0:
-                break
         self.print_weights()
         print("\nLast iteration:\n{:<3} {:8.5f} {:2}\n".format(i, error, misses))
 
