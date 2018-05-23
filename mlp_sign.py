@@ -128,5 +128,5 @@ class Sign_MLP(object):
         plt.legend()
         plt.show()
 
-mlp = Sign_MLP(2, 4, 1)
+mlp = Sign_MLP(2, 10, 1)
 mlp.train(int(input("Patterns: ")), int(input("Epochs: ")), 0.1)

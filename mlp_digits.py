@@ -8,21 +8,24 @@ def sigmoid(x):
 def der_sigmoid(y):
     return y * (1.0 - y)
 
-class XOR_MLP(object):
-    def __init__(self, input, hidden, output):
+class Digit_MLP(object):
+    def __init__(self, input, hidden, hidden2, output):
         # variables for the number of units in each layer
         self.input = input + 1
         self.hidden = hidden + 1
+        self.hidden2 = hidden2 + 1
         self.output = output
 
         # initial activations all set to 1
         self.activations_input = np.ones(self.input)
         self.activations_hidden = np.ones(self.hidden)
+        self.activations_hidden2 = np.ones(self.hidden2)
         self.activations_output = np.ones(self.output)
 
         # random initial weights in range [-1,1]
         self.weights_hidden = np.random.random((self.input, self.hidden)) * 2 - 1
-        self.weights_output = np.random.random((self.hidden, self.output)) * 2 - 1
+        self.weights_hidden2 = np.random.random((self.hidden, self.hidden2)) * 2 - 1
+        self.weights_output = np.random.random((self.hidden2, self.output)) * 2 - 1
 
     def forward(self, input_vector):
         # add bias to input vector
@@ -33,8 +36,13 @@ class XOR_MLP(object):
             potential = self.activations_input @ self.weights_hidden[:,i]
             self.activations_hidden[i] = sigmoid(potential)
         
+        # activations for second hidden layer
+        for i in range(self.hidden2 - 1):
+            potential = self.activations_hidden @ self.weights_hidden2[:,i]
+            self.activations_hidden2[i] = sigmoid(potential)
+        
         # activations for output layer (only one output unit)
-        self.activations_output = self.activations_hidden @ self.weights_output
+        self.activations_output = self.activations_hidden2 @ self.weights_output
 
         # return the output vector
         return self.activations_output
@@ -44,17 +52,28 @@ class XOR_MLP(object):
         delta_output = np.zeros(self.output)
         for i in range(self.output):
             delta_output[i] = 2 * (self.activations_output[i] - target[i])
+        
+        # deltas for hidden2
+        delta_hidden2 = np.zeros(self.hidden2)
+        for i in range(self.hidden2):
+            sum = delta_output @ self.weights_output[i]
+            delta_hidden2[i] = der_sigmoid(self.activations_hidden2[i]) * sum
 
         # deltas for hidden
         delta_hidden = np.zeros(self.hidden)
         for i in range(self.hidden):
-            sum = delta_output @ self.weights_output[i]
+            sum = delta_hidden2 @ self.weights_hidden2[i]
             delta_hidden[i] = der_sigmoid(self.activations_hidden[i]) * sum
 
         # update weights for output
-        for i in range(self.hidden):
-            change = delta_output[0] * self.activations_hidden[i]
+        for i in range(self.hidden2):
+            change = delta_output[0] * self.activations_hidden2[i]
             self.weights_output[i][0] -= rate * change
+        
+        for i in range(self.hidden):
+            for j in range(self.hidden2):
+                change = delta_hidden2[j] * self.activations_hidden[i]
+                self.weights_hidden2[i][j] -= rate * change
         
         # update weights for hidden
         for i in range(self.input):
@@ -104,10 +123,15 @@ class XOR_MLP(object):
         plt.legend()
         plt.show()
 
+allData = np.loadtxt('./data/mfeat-pix.txt')
+assert allData.shape == (2000, 240)
+mask = np.array(10*([True]*100+[False]*100))
+training_data = allData[mask]
+test_data = allData[np.invert(mask)]
+assert training_data.shape == (1000,240) and test_data.shape == (1000,240)
 
+targets = np.repeat(np.arange(10), 100)
+assert targets.shape == (1000,)
 
-patterns = np.array([[0,1], [1,0], [0,0], [1,1]])
-targets = np.array([[1],[1],[0],[0]])
-
-mlp = XOR_MLP(2, 2, 1)
-mlp.train(patterns, targets, 10*1000, 0.1)
+mlp = Digit_MLP(2, 2, 2, 1)
+mlp.train(training_data, targets, 10*1000, 0.1)
